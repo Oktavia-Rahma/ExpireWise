@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/item.dart';
-import 'detail_page.dart';
+import 'item_detail_page.dart';
 
 class AllItemsPage extends StatelessWidget {
   final List<Item> items;
@@ -31,7 +31,7 @@ class AllItemsPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => DetailPage(item: item),
+                    builder: (context) => ItemDetailPage(item: item),
                   ),
                 );
               },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/item.dart';
 
 class ItemDetailPage extends StatelessWidget {
@@ -7,8 +8,8 @@ class ItemDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final expiryText =
-        "${item.expiry.day}/${item.expiry.month}/${item.expiry.year}";
+    final expiryText = DateFormat('d MMMM yyyy', 'id_ID').format(item.expiry);
+
     return Scaffold(
       appBar: AppBar(title: Text("Detail ${item.name}")),
       body: Padding(
