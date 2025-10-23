@@ -38,9 +38,6 @@ class ItemListWidget extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.edit, color: Colors.blue),
                   onPressed: () {
-                    // ⬅️ panggil fungsi edit
-                    // karena ItemListWidget Stateless, biasanya _editItem ada di parent
-                    // jadi disini perlu callback (misalnya onEdit)
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("Edit ${item.name} diklik")),
                     );

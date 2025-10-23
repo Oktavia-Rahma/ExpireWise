@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_day/pages/home_screen.dart'; // Import HomeScreen
-// ignore: depend_on_referenced_packages
+import 'package:flutter_day/pages/home_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,12 +15,21 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
-  void _login() {
+  Future<void> _login() async {
+    setState(() => _isLoading = true);
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('userEmail');
+    final savedPassword = prefs.getString('userPassword');
+
     String email = _emailController.text.trim();
     String password = _passwordController.text;
 
-    if (email == "blueguyss" && password == "010205") {
+    await Future.delayed(const Duration(seconds: 1));
+
+    if (email == savedEmail && password == savedPassword) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -31,6 +41,8 @@ class _LoginPageState extends State<LoginPage> {
         const SnackBar(content: Text("Email atau Password salah!")),
       );
     }
+
+    setState(() => _isLoading = false);
   }
 
   @override
@@ -50,19 +62,16 @@ class _LoginPageState extends State<LoginPage> {
               padding: const EdgeInsets.all(32),
               margin: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
-                // ignore: deprecated_member_use
                 color: Colors.white.withOpacity(0.25),
                 borderRadius: BorderRadius.circular(32),
                 boxShadow: [
                   BoxShadow(
-                    // ignore: deprecated_member_use
                     color: Colors.black.withOpacity(0.08),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
                 ],
                 border: Border.all(
-                  // ignore: deprecated_member_use
                   color: Colors.white.withOpacity(0.3),
                   width: 1.5,
                 ),
@@ -85,7 +94,6 @@ class _LoginPageState extends State<LoginPage> {
                     controller: _emailController,
                     decoration: InputDecoration(
                       filled: true,
-                      // ignore: deprecated_member_use
                       fillColor: Colors.white.withOpacity(0.8),
                       labelText: "Email",
                       border: OutlineInputBorder(
@@ -100,7 +108,6 @@ class _LoginPageState extends State<LoginPage> {
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       filled: true,
-                      // ignore: deprecated_member_use
                       fillColor: Colors.white.withOpacity(0.8),
                       labelText: "Password",
                       border: OutlineInputBorder(
@@ -124,7 +131,7 @@ class _LoginPageState extends State<LoginPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _login,
+                      onPressed: _isLoading ? null : _login,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -134,10 +141,27 @@ class _LoginPageState extends State<LoginPage> {
                         foregroundColor: Colors.white,
                         elevation: 0,
                       ),
-                      child: const Text(
-                        "Login",
-                        style: TextStyle(fontSize: 16),
-                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            )
+                          : const Text("Login", style: TextStyle(fontSize: 16)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterPage(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      "Belum punya akun? Daftar di sini",
+                      style: TextStyle(color: Color(0xFF4B3869)),
                     ),
                   ),
                 ],

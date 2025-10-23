@@ -1,21 +1,26 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_day/pages/stock_management_page.dart';
-import 'package:flutter_day/pages/storage_overview_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// Model Item
-class Item {
-  final String name;
-  final int stock;
-  final DateTime expiry;
+import '../models/item.dart';
+import 'device_info_page.dart';
+import 'login_page.dart';
+import 'stock_management_page.dart';
+import 'storage_overview_page.dart';
+import 'settings_page.dart';
+import 'report_page.dart';
+import 'history_page.dart';
+import 'webview_page.dart';
 
-  Item({required this.name, required this.stock, required this.expiry});
-}
-
-// Halaman Home
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.title, required String email});
-
   final String title;
+  final String email;
+
+  const HomeScreen({super.key, required this.title, required this.email});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -25,15 +30,17 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  String? userName = "Pengguna";
+  String? userEmail = "user@example.com";
+
   final List<String> greetings = [
     'Semoga harimu menyenangkan 😊',
     'Siap cek stok hari ini?',
-    'Pastikan barangmu tetap segar!',
-    'Semoga belanjaanmu nggak ada yang expired ya 🛒',
+    'Pastikan barangmu tetap segar yaa!',
+    'Semoga belanjamu nggak ada yang expired 🛒',
   ];
   int _greetingIndex = 0;
 
-  // Dummy data
   final List<Item> items = [
     Item(name: "Susu", stock: 2, expiry: DateTime(2025, 9, 27)),
     Item(name: "Roti", stock: 1, expiry: DateTime(2025, 9, 26)),
@@ -46,32 +53,61 @@ class _HomeScreenState extends State<HomeScreen>
       .toList();
   List<Item> get lowStock => items.where((item) => item.stock <= 2).toList();
   List<String> get shoppingList => ["Susu", "Roti", "Telur"];
-  List<String> get storageOverview => [
-    "Kulkas: 3 item",
-    "Rak: 2 item",
-    "Freezer: 1 item",
-  ];
+
+  List<String> storageOverview = [];
+
+  Timer? _greetingTimer;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
+    _loadUserData();
+    _loadStorageOverview();
 
-    // Timer animasi greetings
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return false;
+    // cycle greetings periodically using Timer
+    _greetingTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
       setState(() {
         _greetingIndex = (_greetingIndex + 1) % greetings.length;
       });
-      return true;
     });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _greetingTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      userName = prefs.getString('userName') ?? 'Pengguna';
+      userEmail = prefs.getString('userEmail') ?? widget.email;
+    });
+  }
+
+  Future<void> _loadStorageOverview() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('storageOverview');
+    if (data != null) {
+      try {
+        final decoded = jsonDecode(data) as Map<String, dynamic>;
+        if (!mounted) return;
+        setState(() {
+          storageOverview = decoded.entries
+              .map((e) => "${e.key}: ${e.value} item")
+              .toList();
+        });
+      } catch (_) {
+        storageOverview = ["Kulkas: 3 item", "Rak: 2 item", "Freezer: 1 item"];
+      }
+    } else {
+      storageOverview = ["Kulkas: 3 item", "Rak: 2 item", "Freezer: 1 item"];
+    }
   }
 
   void _showFeatureInfo(String title, String subtitle) {
@@ -91,6 +127,70 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Future<void> _openExternalOrInApp(String url, {String? title}) async {
+    final uri = Uri.parse(url);
+
+    // jika running di web, buka di tab baru supaya tidak mengganti app host
+    if (kIsWeb) {
+      // webOnlyWindowName opens a new tab/window on web
+      final opened = await launchUrl(uri, webOnlyWindowName: '_blank');
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal membuka link di browser')),
+        );
+      }
+      return;
+    }
+
+    // untuk Android/iOS: coba buka di browser/eksternal terlebih dulu,
+    // jika gagal, buka di WebViewPage (in-app)
+    if (await canLaunchUrl(uri)) {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (launched) return;
+    }
+
+    // fallback: buka in-app WebView (jika kamu punya webview_page.dart)
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WebViewPage(title: title ?? url, url: url),
+      ),
+    );
+  }
+
+  Future<void> _openPom() async {
+    final uri = Uri.parse('https://www.pom.go.id/');
+    if (kIsWeb) {
+      final opened = await launchUrl(uri, webOnlyWindowName: '_blank');
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Gagal membuka browser')));
+      }
+      return;
+    }
+    if (await canLaunchUrl(uri)) {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Gagal membuka link')));
+      }
+    } else {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link tidak dapat dibuka')),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -99,6 +199,74 @@ class _HomeScreenState extends State<HomeScreen>
         title: Text(widget.title),
         backgroundColor: Colors.transparent,
         elevation: 0,
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              accountName: Text(userName ?? ''),
+              accountEmail: Text(userEmail ?? ''),
+              currentAccountPicture: const CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, size: 40, color: Colors.blue),
+              ),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF66A6FF), Color(0xFFFEC8D8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text("Beranda"),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text("Pengaturan"),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart),
+              title: const Text("Laporan / Statistika"),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ReportPage()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text("Riwayat / History"),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryPage()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text("Informasi Perangkat"),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DeviceInfoPage()),
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text("Logout"),
+              onTap: () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              ),
+            ),
+          ],
+        ),
       ),
       body: Container(
         width: double.infinity,
@@ -111,14 +279,56 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         child: SafeArea(
           child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Column(
               children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Column(
+                    children: [
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.public),
+                        label: const Text("Buka Berita BPOM"),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 45),
+                          backgroundColor: Colors.blueAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => _openExternalOrInApp(
+                          "https://www.pom.go.id/",
+                          title: "Berita BPOM",
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.school),
+                        label: const Text("Edukasi Keamanan Pangan (FAO)"),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 45),
+                          backgroundColor: Colors.teal,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => _openExternalOrInApp(
+                          "https://www.fao.org/food-safety",
+                          title: "Edukasi FAO",
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 32),
                 Image.asset('assets/images/logo.png', height: 110),
-                const SizedBox(height: 18),
-                const Text(
-                  'Halo Viy, senang bertemu lagi!',
-                  style: TextStyle(
+                const SizedBox(height: 16),
+                Text(
+                  'Halo ${userName ?? "Pengguna"}, senang bertemu lagi!',
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF4B3869),
@@ -137,11 +347,9 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
                 const SizedBox(height: 24),
-                // TabBar
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -152,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen>
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    labelColor: Color(0xFF4B3869),
+                    labelColor: const Color(0xFF4B3869),
                     unselectedLabelColor: Colors.white,
                     tabs: const [
                       Tab(text: "Recent Items"),
@@ -189,7 +397,6 @@ class _HomeScreenState extends State<HomeScreen>
                     ],
                   ),
                 ),
-                // Grid fitur
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: GridView.count(
@@ -230,14 +437,11 @@ class _HomeScreenState extends State<HomeScreen>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => StockManagementPage(
-                                items: [],
-                              ), // 👈 kasih list item
+                              builder: (_) => StockManagementPage(items: items),
                             ),
-                          );
+                          ).then((_) => _loadStorageOverview());
                         },
                       ),
-
                       FeatureGlassCard(
                         icon: Icons.storage,
                         title: 'Storage Overview',
@@ -248,13 +452,11 @@ class _HomeScreenState extends State<HomeScreen>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  StorageOverviewPage(items: items),
+                              builder: (_) => StorageOverviewPage(items: items),
                             ),
-                          );
+                          ).then((_) => _loadStorageOverview());
                         },
                       ),
-
                       FeatureGlassCard(
                         icon: Icons.warning_amber,
                         title: 'Peringatan Kadaluarsa',
@@ -275,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-// Widget List Item
+// ItemListWidget, SimpleListWidget, FeatureGlassCard (tidak diubah, tetap rapi)
 class ItemListWidget extends StatelessWidget {
   final List<Item> items;
   final bool highlightExpiry;
@@ -290,11 +492,10 @@ class ItemListWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
+    if (items.isEmpty)
       return const Center(
         child: Text("Tidak ada data.", style: TextStyle(color: Colors.grey)),
       );
-    }
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -304,7 +505,6 @@ class ItemListWidget extends StatelessWidget {
         final expiryText =
             "${item.expiry.day}/${item.expiry.month}/${item.expiry.year}";
         return Card(
-          // ignore: deprecated_member_use
           color: Colors.white.withOpacity(0.85),
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: ListTile(
@@ -328,7 +528,6 @@ class ItemListWidget extends StatelessWidget {
   }
 }
 
-// Widget Simple List
 class SimpleListWidget extends StatelessWidget {
   final List<String> list;
   final IconData icon;
@@ -337,18 +536,16 @@ class SimpleListWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (list.isEmpty) {
+    if (list.isEmpty)
       return const Center(
         child: Text("Tidak ada data.", style: TextStyle(color: Colors.grey)),
       );
-    }
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: list.length,
       itemBuilder: (context, index) {
         return Card(
-          // ignore: deprecated_member_use
           color: Colors.white.withOpacity(0.85),
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: ListTile(
@@ -361,7 +558,6 @@ class SimpleListWidget extends StatelessWidget {
   }
 }
 
-// Widget Kartu Fitur
 class FeatureGlassCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -387,10 +583,8 @@ class FeatureGlassCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            // ignore: deprecated_member_use
             color: Colors.white.withOpacity(0.5),
             borderRadius: BorderRadius.circular(18),
-            // ignore: deprecated_member_use
             border: Border.all(color: color.withOpacity(0.18), width: 1),
           ),
           padding: const EdgeInsets.all(10),
@@ -399,7 +593,6 @@ class FeatureGlassCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                // ignore: deprecated_member_use
                 backgroundColor: color.withOpacity(0.85),
                 child: Icon(icon, size: 22, color: Colors.white),
               ),

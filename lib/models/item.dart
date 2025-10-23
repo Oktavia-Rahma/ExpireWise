@@ -1,4 +1,3 @@
-// lib/models/item.dart
 class Item {
   String name;
   int stock;
@@ -14,7 +13,7 @@ class Item {
     required this.expiry,
     this.unit = 'pcs',
     this.minThreshold = 1,
-    this.storageLocation = 'Rak Dapur', // default sehingga tidak wajib
+    this.storageLocation = 'Rak Dapur',
     DateTime? lastUpdated,
   }) : lastUpdated = lastUpdated ?? DateTime.now();
 
@@ -28,6 +27,31 @@ class Item {
     final s = dt.second.toString().padLeft(2, '0');
     return "$h:$m:$s";
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'stock': stock,
+      'expiry': expiry.toIso8601String(),
+      'unit': unit,
+      'minThreshold': minThreshold,
+      'storageLocation': storageLocation,
+      'lastUpdated': lastUpdated.toIso8601String(),
+    };
+  }
+
+  factory Item.fromJson(Map<String, dynamic> json) {
+    return Item(
+      name: json['name'] ?? '',
+      stock: json['stock'] ?? 0,
+      expiry: DateTime.tryParse(json['expiry'] ?? '') ?? DateTime.now(),
+      unit: json['unit'] ?? 'pcs',
+      minThreshold: json['minThreshold'] ?? 1,
+      storageLocation: json['storageLocation'] ?? 'Rak Dapur',
+      lastUpdated:
+          DateTime.tryParse(json['lastUpdated'] ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class FoodItem extends Item {
@@ -40,7 +64,7 @@ class FoodItem extends Item {
     super.unit,
     super.minThreshold = 2,
     this.isFrozen = false,
-    super.storageLocation, // default juga di sini
+    super.storageLocation,
     super.lastUpdated,
   });
 

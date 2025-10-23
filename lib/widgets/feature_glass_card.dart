@@ -5,6 +5,4 @@ class FeatureGlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => throw UnimplementedError();
-
-  // ...existing code...
 }
